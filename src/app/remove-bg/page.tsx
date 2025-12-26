@@ -59,9 +59,13 @@ export default function RemoveBackgroundPage() {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
       
       const response = await fetch(`${API_URL}/api/remove-background`, {
         method: 'POST',
+        headers: {
+          'X-API-Key': API_KEY,
+        },
         body: formData,
       });
 
