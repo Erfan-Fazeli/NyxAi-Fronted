@@ -1,0 +1,38 @@
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import { Header } from "@/components/layout/Header";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "NyxAi-TM | Intelligent Agents for Enterprise",
+  description: "Architecting Intelligent Agents for Enterprise. Custom AI solutions, engineering, and development.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" className="dark">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950 text-zinc-50 min-h-screen selection:bg-violet-500/30`}
+      >
+        <Header />
+        <main className="pt-20">
+          {children}
+        </main>
+      </body>
+    </html>
+  );
+}
