@@ -27,7 +27,7 @@ export async function onRequestPost(context) {
     if (request.headers.has("Content-Type")) {
       headers.set("Content-Type", request.headers.get("Content-Type"));
     }
-    headers.set("User-Agent", "NyxAi-Proxy/1.0");
+    headers.set("User-Agent", "NyxAi");
     headers.set("X-Timestamp", signed.timestamp);
     headers.set("X-Nonce", signed.nonce);
     headers.set("X-Signature", signed.signatureHex);

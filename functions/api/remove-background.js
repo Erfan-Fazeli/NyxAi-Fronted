@@ -106,7 +106,7 @@ export async function onRequestPost(context) {
 		}
     // IMPORTANT: do NOT manually set Content-Length on edge runtimes.
     // Let fetch/runtime compute it to avoid mismatch/streaming edge cases.
-		headers.set("User-Agent", "NyxAi-Proxy/1.0");
+		headers.set("User-Agent", "NyxAi");
 
 		headers.set("X-Timestamp", signed.timestamp);
 		headers.set("X-Nonce", signed.nonce);
