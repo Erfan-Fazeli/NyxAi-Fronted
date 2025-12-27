@@ -3,14 +3,11 @@ export async function onRequestGet() {
     endpoint: "/api/remove-background",
     method: "POST",
     content_type: "multipart/form-data",
-    required_headers: {
-      "X-Timestamp": "Unix timestamp (seconds)",
-      "X-Nonce": "Unique nonce (UUID recommended)",
-      "X-Signature": "HMAC-SHA256 signature"
+    required_fields: {
+      "image": "Image file (jpg, png, webp, etc.)"
     },
-    signature_algorithm: "HMAC-SHA256(api_key, '{timestamp}:{nonce}:{body_sha256}')",
-    description: "AI-powered background removal service (proxied via Cloudflare)",
-    backend: "Railway (https://nyxai-bg-remover-production.up.railway.app)"
+    description: "AI-powered background removal service",
+    note: "This endpoint is only accessible from the frontend UI. Direct external access is restricted."
   }, null, 2), {
     status: 200,
     headers: { 
@@ -23,13 +20,37 @@ export async function onRequestGet() {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-	const { buildAuthHeaders } = await import("../_shared/signature.js");
+  const { buildAuthHeaders } = await import("../_shared/signature.js");
+  
+  // SECURITY: Check origin/referer to ensure request comes from your domain
+  const origin = request.headers.get("Origin");
+  const referer = request.headers.get("Referer");
+  const allowedDomains = ["nyxagent.dev", "localhost"];
+  
+  const isAllowedOrigin = origin && allowedDomains.some(d => origin.includes(d));
+  const isAllowedReferer = referer && allowedDomains.some(d => referer.includes(d));
+  
+  // Allow requests from allowed domains OR requests with X-Debug header (for testing)
+  if (!isAllowedOrigin && !isAllowedReferer && !request.headers.get("X-Debug-Simple")) {
+    return new Response(JSON.stringify({ 
+      error: "Access denied",
+      message: "This endpoint is only accessible from the frontend UI"
+    }), {
+      status: 403,
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": origin || "*"
+      }
+    });
+  }
   
   // Immediate Debug Check (No Body Read)
   if (request.headers.get("X-Debug-Simple") === "true") {
     return new Response(JSON.stringify({
       status: "alive",
-      env_api_key_exists: !!env.API_KEY
+      env_api_key_exists: !!env.API_KEY,
+      origin: origin,
+      referer: referer
     }), { headers: { "Content-Type": "application/json" } });
   }
   
