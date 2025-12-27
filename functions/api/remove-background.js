@@ -23,6 +23,14 @@ export async function onRequestGet() {
 export async function onRequestPost(context) {
   const { request, env } = context;
   
+  // Immediate Debug Check (No Body Read)
+  if (request.headers.get("X-Debug-Simple") === "true") {
+    return new Response(JSON.stringify({
+      status: "alive",
+      env_api_key_exists: !!env.API_KEY
+    }), { headers: { "Content-Type": "application/json" } });
+  }
+  
   const BACKEND_URL = "https://nyxai-bg-remover-production.up.railway.app/api/remove-background";
   const API_KEY = env.API_KEY;
   if (!API_KEY) {
