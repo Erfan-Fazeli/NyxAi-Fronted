@@ -95,17 +95,31 @@ export async function onRequestPost(context) {
       const signatureArray = Array.from(new Uint8Array(signatureBuffer));
       const signatureHex = signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
       
-      const headers = new Headers(request.headers);
-      headers.delete("Host");
-      headers.delete("Content-Length");
-      headers.delete("X-API-Key");
-      
+      // Construct CLEAN headers
+      const headers = new Headers();
+      if (request.headers.has("Content-Type")) {
+        headers.set("Content-Type", request.headers.get("Content-Type"));
+      }
       headers.set("Content-Length", bodyUint8.length.toString());
+      headers.set("User-Agent", "NyxAi-Proxy/1.0");
+      
       headers.set("X-Timestamp", timestamp);
       headers.set("X-Nonce", nonce);
       headers.set("X-Signature", signatureHex);
       
       return headers;
+    }
+
+    // Debug mode
+    if (request.headers.get("X-Debug") === "true") {
+      const debugHeaders = await getSignedHeaders();
+      const headersObj = {};
+      debugHeaders.forEach((v, k) => headersObj[k] = v);
+      return new Response(JSON.stringify({
+        debug: true,
+        headers: headersObj,
+        bodySize: bodyUint8.length
+      }), { headers: { "Content-Type": "application/json" } });
     }
 
     // Custom retry logic with fresh headers
