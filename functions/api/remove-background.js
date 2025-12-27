@@ -22,7 +22,6 @@ export async function onRequestPost(context) {
 
   const { buildAuthHeaders } = await import("../_shared/signature.js");
   
-  // SECURITY: Check origin/referer to ensure request comes from your domain
   const origin = request.headers.get("Origin");
   const referer = request.headers.get("Referer");
   const allowedDomains = ["nyxagent.dev", "localhost"];
@@ -30,7 +29,6 @@ export async function onRequestPost(context) {
   const isAllowedOrigin = origin && allowedDomains.some(d => origin.includes(d));
   const isAllowedReferer = referer && allowedDomains.some(d => referer.includes(d));
   
-  // Allow requests from allowed domains OR requests with X-Debug header (for testing)
   if (!isAllowedOrigin && !isAllowedReferer && !request.headers.get("X-Debug-Simple")) {
     return new Response(JSON.stringify({ 
       error: "Access denied",
@@ -44,7 +42,6 @@ export async function onRequestPost(context) {
     });
   }
   
-  // Immediate Debug Check (No Body Read)
   if (request.headers.get("X-Debug-Simple") === "true") {
     return new Response(JSON.stringify({
       status: "alive",
@@ -64,9 +61,7 @@ export async function onRequestPost(context) {
   }
   
   const MAX_SIZE_BYTES = 2 * 1024 * 1024;
-  const MAX_RETRIES = 0; // Disable retries to avoid premature timeouts
-  // Cloudflare Pages Functions max timeout is 100 seconds (paid) or 30 seconds (free)
-  // Set to 90 seconds to allow background processing to complete
+  const MAX_RETRIES = 0; 
   const TIMEOUT_MS = 90000;
   
   try {
