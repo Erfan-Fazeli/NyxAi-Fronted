@@ -6,7 +6,7 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  const { buildAuthHeaders } = await import("../_shared/signature.js");
+  const { buildAuthHeaders } = await import("./_shared/signature.js");
   
   // ---------------------------------------------------------
   // SECURITY: UI-Only Access Enforcement
