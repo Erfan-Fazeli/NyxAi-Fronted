@@ -36,48 +36,6 @@ export async function onRequestPost(context) {
   const MAX_RETRIES = 2;
   const TIMEOUT_MS = 25000;
   
-  async function fetchWithRetry(url, options, retries = MAX_RETRIES) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      let timeoutId = null;
-      try {
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-        
-        const response = await fetch(url, {
-          ...options,
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (response.ok || response.status < 500) {
-          return response;
-        }
-        
-        if (attempt < retries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        
-        return response;
-        
-      } catch (error) {
-        if (timeoutId !== null) {
-          clearTimeout(timeoutId);
-        }
-        
-        if (attempt < retries && error.name === 'AbortError') {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        
-        throw error;
-      }
-    }
-  }
-  
   try {
     const contentLength = request.headers.get("Content-Length");
     if (contentLength && parseInt(contentLength) > MAX_SIZE_BYTES) {
@@ -107,51 +65,98 @@ export async function onRequestPost(context) {
       });
     }
     
-    let newHeaders = new Headers(request.headers);
-    
-    newHeaders.delete("Host");
-    newHeaders.delete("Content-Length"); 
-    
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const nonce = crypto.randomUUID();
-    
-    const bodyHashBuffer = await crypto.subtle.digest("SHA-256", bodyUint8);
-    const bodyHashArray = Array.from(new Uint8Array(bodyHashBuffer));
-    const bodyHashHex = bodyHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    const stringToSign = `${timestamp}:${nonce}:${bodyHashHex}`;
-    
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(API_KEY);
-    const key = await crypto.subtle.importKey(
-      "raw", 
-      keyData, 
-      { name: "HMAC", hash: "SHA-256" }, 
-      false, 
-      ["sign"]
-    );
-    
-    const signatureBuffer = await crypto.subtle.sign(
-      "HMAC", 
-      key, 
-      encoder.encode(stringToSign)
-    );
-    
-    const signatureArray = Array.from(new Uint8Array(signatureBuffer));
-    const signatureHex = signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    newHeaders.set("X-Timestamp", timestamp);
-    newHeaders.set("X-Nonce", nonce);
-    newHeaders.set("X-Signature", signatureHex);
-    newHeaders.delete("X-API-Key");
+    // Helper to generate signed headers
+    async function getSignedHeaders() {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const nonce = crypto.randomUUID();
+      
+      const bodyHashBuffer = await crypto.subtle.digest("SHA-256", bodyUint8);
+      const bodyHashArray = Array.from(new Uint8Array(bodyHashBuffer));
+      const bodyHashHex = bodyHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      const stringToSign = `${timestamp}:${nonce}:${bodyHashHex}`;
+      
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(API_KEY);
+      const key = await crypto.subtle.importKey(
+        "raw", 
+        keyData, 
+        { name: "HMAC", hash: "SHA-256" }, 
+        false, 
+        ["sign"]
+      );
+      
+      const signatureBuffer = await crypto.subtle.sign(
+        "HMAC", 
+        key, 
+        encoder.encode(stringToSign)
+      );
+      
+      const signatureArray = Array.from(new Uint8Array(signatureBuffer));
+      const signatureHex = signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      const headers = new Headers(request.headers);
+      headers.delete("Host");
+      headers.delete("Content-Length");
+      headers.delete("X-API-Key");
+      
+      headers.set("X-Timestamp", timestamp);
+      headers.set("X-Nonce", nonce);
+      headers.set("X-Signature", signatureHex);
+      
+      return headers;
+    }
+
+    // Custom retry logic with fresh headers
+    async function fetchWithFreshHeaders(url, retries = MAX_RETRIES) {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        let timeoutId = null;
+        try {
+          const controller = new AbortController();
+          timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+          
+          // Generate FRESH headers (new nonce) for each attempt
+          const signedHeaders = await getSignedHeaders();
+          
+          const response = await fetch(url, {
+            method: "POST",
+            headers: signedHeaders,
+            body: bodyUint8,
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (response.ok || response.status < 500) {
+            return response;
+          }
+          
+          if (attempt < retries) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
+          return response;
+          
+        } catch (error) {
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+          }
+          
+          if (attempt < retries && error.name === 'AbortError') {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
+          throw error;
+        }
+      }
+    }
     
     try {
-      const backendResponse = await fetchWithRetry(BACKEND_URL, {
-        method: "POST",
-        headers: newHeaders,
-        body: bodyUint8
-      });
-      
+      const backendResponse = await fetchWithFreshHeaders(BACKEND_URL);
       return backendResponse;
       
     } catch (fetchError) {
