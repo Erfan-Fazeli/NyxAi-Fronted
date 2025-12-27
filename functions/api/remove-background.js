@@ -22,6 +22,8 @@ export async function onRequestGet() {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+	const { buildAuthHeaders } = await import("../_shared/signature.js");
   
   // Immediate Debug Check (No Body Read)
   if (request.headers.get("X-Debug-Simple") === "true") {
@@ -73,59 +75,37 @@ export async function onRequestPost(context) {
       });
     }
     
-    // Helper to generate signed headers
-    async function getSignedHeaders() {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const nonce = crypto.randomUUID();
-      
-      const bodyHashBuffer = await crypto.subtle.digest("SHA-256", bodyUint8);
-      const bodyHashArray = Array.from(new Uint8Array(bodyHashBuffer));
-      const bodyHashHex = bodyHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
-      const stringToSign = `${timestamp}:${nonce}:${bodyHashHex}`;
-      
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode(API_KEY);
-      const key = await crypto.subtle.importKey(
-        "raw", 
-        keyData, 
-        { name: "HMAC", hash: "SHA-256" }, 
-        false, 
-        ["sign"]
-      );
-      
-      const signatureBuffer = await crypto.subtle.sign(
-        "HMAC", 
-        key, 
-        encoder.encode(stringToSign)
-      );
-      
-      const signatureArray = Array.from(new Uint8Array(signatureBuffer));
-      const signatureHex = signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
-      // Construct CLEAN headers
-      const headers = new Headers();
-      if (request.headers.has("Content-Type")) {
-        headers.set("Content-Type", request.headers.get("Content-Type"));
-      }
-      headers.set("Content-Length", bodyUint8.length.toString());
-      headers.set("User-Agent", "NyxAi-Proxy/1.0");
-      
-      headers.set("X-Timestamp", timestamp);
-      headers.set("X-Nonce", nonce);
-      headers.set("X-Signature", signatureHex);
-      
-      return headers;
-    }
+	// Helper to generate signed headers (single, shared implementation)
+	async function getSignedHeaders() {
+		const signed = await buildAuthHeaders({ apiKey: API_KEY, bodyBytes: bodyUint8 });
+
+		// Construct CLEAN headers (minimize CF/header surprises)
+		const headers = new Headers();
+		if (request.headers.has("Content-Type")) {
+			headers.set("Content-Type", request.headers.get("Content-Type"));
+		}
+		headers.set("Content-Length", bodyUint8.length.toString());
+		headers.set("User-Agent", "NyxAi-Proxy/1.0");
+
+		headers.set("X-Timestamp", signed.timestamp);
+		headers.set("X-Nonce", signed.nonce);
+		headers.set("X-Signature", signed.signatureHex);
+
+		return { headers, signed };
+	}
 
     // Debug mode
     if (request.headers.get("X-Debug") === "true") {
-      const debugHeaders = await getSignedHeaders();
-      const headersObj = {};
-      debugHeaders.forEach((v, k) => headersObj[k] = v);
+      const { headers: debugHeaders, signed } = await getSignedHeaders();
+		const headersObj = {};
+		debugHeaders.forEach((v, k) => headersObj[k] = v);
       return new Response(JSON.stringify({
         debug: true,
         headers: headersObj,
+			sign: {
+				body_sha256: signed.bodyHashHex,
+				string_to_sign: signed.stringToSign
+			},
         bodySize: bodyUint8.length
       }), { headers: { "Content-Type": "application/json" } });
     }
@@ -139,7 +119,7 @@ export async function onRequestPost(context) {
           timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
           
           // Generate FRESH headers (new nonce) for each attempt
-          const signedHeaders = await getSignedHeaders();
+			const { headers: signedHeaders } = await getSignedHeaders();
           
           const response = await fetch(url, {
             method: "POST",
