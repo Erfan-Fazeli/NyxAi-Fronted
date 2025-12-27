@@ -58,9 +58,9 @@ export default function RemoveBackgroundPage() {
       setProgress(40);
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Use production URL directly
-      const API_URL = 'https://nyxai-bg-remover-production.up.railway.app';
-      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
+      // Use production URL by default if env var is not set
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://nyxai-bg-remover-production.up.railway.app';
+      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'nyx1q2w3e4r5t6y7u8i9o0p';
       
       const response = await fetch(`${API_URL}/api/remove-background`, {
         method: 'POST',
