@@ -64,7 +64,7 @@ export async function onRequestPost(context) {
     });
   }
   
-  const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+  const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB to match backend
   const MAX_RETRIES = 0; 
   const TIMEOUT_MS = 90000;
   
@@ -73,9 +73,9 @@ export async function onRequestPost(context) {
     if (contentLength && parseInt(contentLength) > MAX_SIZE_BYTES) {
       return new Response(JSON.stringify({
         error: "File too large for proxy",
-        message: "Please use direct backend endpoint for files > 2MB",
+        message: "Please use direct backend endpoint for files > 50MB",
         direct_endpoint: BACKEND_URL,
-        max_proxy_size: "2MB",
+        max_proxy_size: "50MB",
         your_size: `${(parseInt(contentLength) / 1024 / 1024).toFixed(2)}MB`
       }), {
         status: 413, // Payload Too Large
@@ -91,7 +91,7 @@ export async function onRequestPost(context) {
     if (bodyUint8.length > MAX_SIZE_BYTES) {
       return new Response(JSON.stringify({
         error: "File too large for proxy",
-        message: "Please use direct backend endpoint for files > 2MB",
+        message: "Please use direct backend endpoint for files > 50MB",
         direct_endpoint: BACKEND_URL
       }), {
         status: 413,
