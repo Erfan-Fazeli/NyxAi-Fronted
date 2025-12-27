@@ -44,6 +44,7 @@ export async function onRequestPost(context) {
   
   const MAX_SIZE_BYTES = 2 * 1024 * 1024;
   const MAX_RETRIES = 2;
+  // Keep this under common edge time limits; we also pass Cloudflare-specific timeout.
   const TIMEOUT_MS = 25000;
   
   try {
@@ -61,8 +62,10 @@ export async function onRequestPost(context) {
       });
     }
     
-    const bodyBuffer = await request.arrayBuffer();
-    const bodyUint8 = new Uint8Array(bodyBuffer);
+  const t0 = Date.now();
+  const bodyBuffer = await request.arrayBuffer();
+  const t1 = Date.now();
+  const bodyUint8 = new Uint8Array(bodyBuffer);
     
     if (bodyUint8.length > MAX_SIZE_BYTES) {
       return new Response(JSON.stringify({
@@ -77,14 +80,15 @@ export async function onRequestPost(context) {
     
 	// Helper to generate signed headers (single, shared implementation)
 	async function getSignedHeaders() {
-		const signed = await buildAuthHeaders({ apiKey: API_KEY, bodyBytes: bodyUint8 });
+    const signed = await buildAuthHeaders({ apiKey: API_KEY, bodyBytes: bodyUint8 });
 
-		// Construct CLEAN headers (minimize CF/header surprises)
+    // Construct CLEAN headers (minimize CF/header surprises)
 		const headers = new Headers();
 		if (request.headers.has("Content-Type")) {
 			headers.set("Content-Type", request.headers.get("Content-Type"));
 		}
-		headers.set("Content-Length", bodyUint8.length.toString());
+    // IMPORTANT: do NOT manually set Content-Length on edge runtimes.
+    // Let fetch/runtime compute it to avoid mismatch/streaming edge cases.
 		headers.set("User-Agent", "NyxAi-Proxy/1.0");
 
 		headers.set("X-Timestamp", signed.timestamp);
@@ -106,7 +110,10 @@ export async function onRequestPost(context) {
 				body_sha256: signed.bodyHashHex,
 				string_to_sign: signed.stringToSign
 			},
-        bodySize: bodyUint8.length
+        bodySize: bodyUint8.length,
+			timings_ms: {
+				read_body: t1 - t0
+			}
       }), { headers: { "Content-Type": "application/json" } });
     }
 
@@ -119,13 +126,20 @@ export async function onRequestPost(context) {
           timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
           
           // Generate FRESH headers (new nonce) for each attempt
-			const { headers: signedHeaders } = await getSignedHeaders();
+      const { headers: signedHeaders } = await getSignedHeaders();
           
           const response = await fetch(url, {
             method: "POST",
             headers: signedHeaders,
-            body: bodyUint8,
-            signal: controller.signal
+      // Send the original ArrayBuffer; avoids some runtime/body coercion edge cases.
+            body: bodyBuffer,
+            signal: controller.signal,
+      // Cloudflare-specific controls (safe to include; ignored in non-CF runtimes)
+      cf: {
+        // seconds
+        timeout: Math.ceil(TIMEOUT_MS / 1000),
+        cacheTtl: 0
+      }
           });
           
           clearTimeout(timeoutId);
