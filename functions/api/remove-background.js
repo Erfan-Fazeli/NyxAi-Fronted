@@ -100,6 +100,7 @@ export async function onRequestPost(context) {
       headers.delete("Content-Length");
       headers.delete("X-API-Key");
       
+      headers.set("Content-Length", bodyUint8.length.toString());
       headers.set("X-Timestamp", timestamp);
       headers.set("X-Nonce", nonce);
       headers.set("X-Signature", signatureHex);
