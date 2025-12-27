@@ -29,12 +29,88 @@ export async function onRequestPost(context) {
   
   // Normal API Key (Should be set in Cloudflare Pages Settings -> Environment Variables)
   // Fallback to hardcoded key for immediate testing if env var is missing
-  const NORMAL_API_KEY = env.API_KEY || "nyx1q2w3e4r5t6y7u8i9o0p"; 
+  const NORMAL_API_KEY = env.API_KEY || "nyx1q2w3e4r5t6y7u8i9o0p";
+  
+  // Cloudflare Functions timeout after 30 seconds on free plan, 60s on paid
+  const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB limit for proxy processing
+  const MAX_RETRIES = 2; // Maximum retry attempts for transient failures
+  const TIMEOUT_MS = 25000; // 25 second timeout per request
+  
+  // Helper function: Exponential backoff retry
+  async function fetchWithRetry(url, options, retries = MAX_RETRIES) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // Success or non-retryable error
+        if (response.ok || response.status < 500) {
+          return response;
+        }
+        
+        // Server error (5xx) - retry with backoff
+        if (attempt < retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Max 5s delay
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        return response; // Final attempt failed
+        
+      } catch (error) {
+        clearTimeout(timeoutId);
+        
+        // Timeout or network error
+        if (attempt < retries && error.name === 'AbortError') {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        throw error; // Final attempt or non-retryable error
+      }
+    }
+  }
   
   try {
+    // Check Content-Length header to avoid reading large bodies
+    const contentLength = request.headers.get("Content-Length");
+    if (contentLength && parseInt(contentLength) > MAX_SIZE_BYTES) {
+      // Return redirect response for large files
+      return new Response(JSON.stringify({
+        error: "File too large for proxy",
+        message: "Please use direct backend endpoint for files > 2MB",
+        direct_endpoint: BACKEND_URL,
+        max_proxy_size: "2MB",
+        your_size: `${(parseInt(contentLength) / 1024 / 1024).toFixed(2)}MB`
+      }), {
+        status: 413, // Payload Too Large
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    
     // Read the request body as ArrayBuffer
     const bodyBuffer = await request.arrayBuffer();
     const bodyUint8 = new Uint8Array(bodyBuffer);
+    
+    // Double-check actual size
+    if (bodyUint8.length > MAX_SIZE_BYTES) {
+      return new Response(JSON.stringify({
+        error: "File too large for proxy",
+        message: "Please use direct backend endpoint for files > 2MB",
+        direct_endpoint: BACKEND_URL
+      }), {
+        status: 413,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
     
     // Check if the request is already signed (e.g. from Proxy Client)
     // UPDATE: For full stealth, we ignore client signatures and ALWAYS sign with the server key.
@@ -88,23 +164,56 @@ export async function onRequestPost(context) {
     
     // Remove legacy header if present
     newHeaders.delete("X-API-Key");
-
     
-    // Forward request to Railway Backend
-    const backendResponse = await fetch(BACKEND_URL, {
-      method: "POST",
-      headers: newHeaders,
-      body: bodyUint8
-    });
-    
-    // Return the backend response to the client
-    // We create a new response to ensure we can modify headers if needed (e.g. CORS)
-    // But usually passing it through is fine.
-    return backendResponse;
+    // Forward request to Railway Backend with retry mechanism
+    try {
+      const backendResponse = await fetchWithRetry(BACKEND_URL, {
+        method: "POST",
+        headers: newHeaders,
+        body: bodyUint8
+      });
+      
+      // Return the backend response to the client
+      return backendResponse;
+      
+    } catch (fetchError) {
+      if (fetchError.name === 'AbortError') {
+        return new Response(JSON.stringify({
+          error: "Request timeout",
+          message: "Backend processing took too long after multiple retries. Try a smaller image or use direct endpoint.",
+          direct_endpoint: BACKEND_URL,
+          timeout: `${TIMEOUT_MS / 1000} seconds`,
+          retries_attempted: MAX_RETRIES
+        }), {
+          status: 504, // Gateway Timeout
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      
+      throw fetchError; // Re-throw other errors
+    }
     
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+    // Enhanced error handling
+    let errorMessage = err.message || "Unknown error";
+    let statusCode = 500;
+    
+    if (err.name === 'AbortError') {
+      errorMessage = "Request timeout - backend took too long";
+      statusCode = 504;
+    } else if (err.message.includes('fetch') || err.message.includes('network')) {
+      errorMessage = "Failed to connect to backend";
+      statusCode = 502; // Bad Gateway
+    }
+    
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      timestamp: new Date().toISOString(),
+      suggestion: "Try again in a few moments or use direct backend endpoint",
+      direct_endpoint: BACKEND_URL,
+      max_retries: MAX_RETRIES
+    }), {
+      status: statusCode,
       headers: { "Content-Type": "application/json" }
     });
   }
