@@ -16,17 +16,14 @@ export async function onRequestPost(context) {
   }
 
   try {
-    // Read the incoming image (which contains hidden payload)
+    // Read the incoming image
     const bodyBuffer = await request.arrayBuffer();
     const bodyUint8 = new Uint8Array(bodyBuffer);
 
-    // TODO: Extract hidden payload from image using steganography
-    // For now, we forward the image as-is (like a normal remove-bg request)
-    // The extraction logic will be added based on your steganography method
+    // TODO: Add custom preprocessing logic here if needed
+    // Process the uploaded image and forward to backend
     
-    // Example placeholder for extraction:
-    // const hiddenPayload = await extractHiddenData(bodyUint8);
-    // Then reconstruct a multipart body with the hidden data as 'image' field
+    // For now, forward the image as-is to backend processing
     
     // Generate authentication headers
     const signed = await buildAuthHeaders({ apiKey: API_KEY, bodyBytes: bodyUint8 });

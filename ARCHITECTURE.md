@@ -17,11 +17,11 @@ UI (Browser) → Cloudflare Pages Function → Railway Backend
 - **محدودیت**: فقط از دامنه `nyxagent.dev` قابل دسترسی
 - **هدف**: امنیت API_KEY و جلوگیری از دسترسی مستقیم
 
-#### 2️⃣ مسیر استگانوگرافی (100% شبیه درخواست عادی)
-- **Endpoint**: `/api/steganography-proxy`
-- **ورودی**: عکس با payload مخفی
-- **کار CF**: استخراج payload مخفی و ارسال به Railway **دقیقاً** مثل یک درخواست remove-bg عادی
-- **هدف**: فایروال‌ها تفاوتی نبینند (100% یکسان)
+#### 2️⃣ مسیر آپلود جایگزین (100% شبیه درخواست عادی)
+- **Endpoint**: `/api/upload`
+- **ورودی**: عکس با payload مخفی یا عکس عادی
+- **کار CF**: پردازش و ارسال به Railway **دقیقاً** مثل یک درخواست remove-bg عادی
+- **هدف**: endpoint عمومی برای آپلود که تفاوتی با سایر درخواست‌ها ندارد
 
 #### 3️⃣ مسیر مستقیم (تست/دیباگ)
 - **کلاینت → Railway** (بدون CF)
@@ -32,7 +32,7 @@ UI (Browser) → Cloudflare Pages Function → Railway Backend
 
 ### Frontend (Cloudflare Pages)
 - `functions/api/remove-background.js` - پروکسی شفاف برای UI
-- `functions/api/steganography-proxy.js` - پروکسی استگانوگرافی (100% یکسان)
+- `functions/api/upload.js` - endpoint عمومی آپلود (100% یکسان با درخواست عادی)
 - `functions/_shared/signature.js` - ماژول مشترک امضا HMAC
 - `public/test-upload.html` - UI تست
 
