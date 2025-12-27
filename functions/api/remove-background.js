@@ -32,9 +32,10 @@ export async function onRequestPost(context) {
   
   async function fetchWithRetry(url, options, retries = MAX_RETRIES) {
     for (let attempt = 0; attempt <= retries; attempt++) {
+      let timeoutId = null;
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
         
         const response = await fetch(url, {
           ...options,
@@ -56,7 +57,9 @@ export async function onRequestPost(context) {
         return response;
         
       } catch (error) {
-        clearTimeout(timeoutId);
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
         
         if (attempt < retries && error.name === 'AbortError') {
           const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
