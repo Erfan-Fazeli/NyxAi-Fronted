@@ -1,20 +1,6 @@
-export async function onRequestGet() {
-  return new Response(JSON.stringify({
-    endpoint: "/api/remove-background",
-    method: "POST",
-    content_type: "multipart/form-data",
-    required_fields: {
-      "image": "Image file (jpg, png, webp, etc.)"
-    },
-    description: "AI-powered background removal service",
-    note: "This endpoint is only accessible from the frontend UI. Direct external access is restricted."
-  }, null, 2), {
-    status: 200,
-    headers: { 
-      "Content-Type": "application/json",
-      "X-Service": "NyxAi-Proxy"
-    }
-  });
+export async function onRequestGet(context) {
+  // Pass GET requests through to the static asset (Next.js HTML page)
+  return context.env.ASSETS.fetch(context.request);
 }
 
 export async function onRequestPost(context) {

@@ -58,7 +58,8 @@ export default function RemoveBackgroundPage() {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       // Use local API route (Cloudflare Function) which acts as a proxy
-      const API_URL = '/api/remove-background';
+      // Now mapped to the same URL as the page for stealth
+      const API_URL = '/remove-bg';
       
       const response = await fetch(API_URL, {
         method: 'POST',
