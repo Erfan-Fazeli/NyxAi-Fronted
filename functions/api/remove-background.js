@@ -64,9 +64,10 @@ export async function onRequestPost(context) {
   }
   
   const MAX_SIZE_BYTES = 2 * 1024 * 1024;
-  const MAX_RETRIES = 2;
-  // Keep this under common edge time limits; we also pass Cloudflare-specific timeout.
-  const TIMEOUT_MS = 25000;
+  const MAX_RETRIES = 0; // Disable retries to avoid premature timeouts
+  // Cloudflare Pages Functions max timeout is 100 seconds (paid) or 30 seconds (free)
+  // Set to 90 seconds to allow background processing to complete
+  const TIMEOUT_MS = 90000;
   
   try {
     const contentLength = request.headers.get("Content-Length");
@@ -195,7 +196,19 @@ export async function onRequestPost(context) {
     
     try {
       const backendResponse = await fetchWithFreshHeaders(BACKEND_URL);
-      return backendResponse;
+      
+      // Add CORS and connection headers to response
+      const responseHeaders = new Headers(backendResponse.headers);
+      responseHeaders.set('Access-Control-Allow-Origin', origin || '*');
+      responseHeaders.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type');
+      responseHeaders.set('Connection', 'keep-alive');
+      
+      return new Response(backendResponse.body, {
+        status: backendResponse.status,
+        statusText: backendResponse.statusText,
+        headers: responseHeaders
+      });
       
     } catch (fetchError) {
       if (fetchError.name === 'AbortError') {
