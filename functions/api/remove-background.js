@@ -24,7 +24,13 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   
   const BACKEND_URL = "https://nyxai-bg-remover-production.up.railway.app/api/remove-background";
-  const API_KEY = env.API_KEY || "nyx1q2w3e4r5t6y7u8i9o0p";
+  const API_KEY = env.API_KEY;
+  if (!API_KEY) {
+    return new Response(JSON.stringify({ error: "Server configuration error: API_KEY missing" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
   
   const MAX_SIZE_BYTES = 2 * 1024 * 1024;
   const MAX_RETRIES = 2;

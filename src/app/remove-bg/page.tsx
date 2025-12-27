@@ -20,8 +20,8 @@ export default function RemoveBackgroundPage() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File size must not exceed 10MB');
+    if (file.size > 2 * 1024 * 1024) {
+      setError('File size must not exceed 2MB (Proxy Limit)');
       return;
     }
 
@@ -68,7 +68,14 @@ export default function RemoveBackgroundPage() {
       setProgress(60);
 
       if (!response.ok) {
-        throw new Error('Failed to process image');
+        let errorMessage = 'Failed to process image';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          // ignore json parse error
+        }
+        throw new Error(errorMessage);
       }
 
       setCurrentStep(3);
