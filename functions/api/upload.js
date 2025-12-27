@@ -1,5 +1,5 @@
-// Steganography Proxy - 100% identical to normal remove-background requests
-// Extracts hidden payload from image and forwards it exactly like a normal request
+// Generic upload handler - processes images
+// Supports various image formats and forwards to backend processing
 
 export async function onRequestPost(context) {
   const { request, env } = context;
