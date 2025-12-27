@@ -12,7 +12,6 @@ export default function RemoveBackgroundPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
 
   const handleFileSelect = useCallback((file: File) => {
@@ -95,10 +94,17 @@ export default function RemoveBackgroundPage() {
   };
 
   const downloadImage = () => {
-    if (!processedImageUrl) return;
+    if (!processedImageUrl || !selectedImage) return;
+    
+    // Extract original filename and extension
+    const originalName = selectedImage.name;
+    const ext = originalName.split('.').pop()?.toLowerCase() || 'png';
+    const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || 'image';
+    
     const a = document.createElement('a');
     a.href = processedImageUrl;
-    a.download = `removed-bg-${Date.now()}.png`;
+    // Match backend filename pattern: removed_bg_{basename}.{ext}
+    a.download = `removed_bg_${baseName}.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -141,7 +147,7 @@ export default function RemoveBackgroundPage() {
                 Select Image
               </span>
             </label>
-            <p className="mt-4 text-sm text-zinc-500">PNG, JPG (Max 10MB)</p>
+            <p className="mt-4 text-sm text-zinc-500">PNG, JPG, WEBP (Max 10MB)</p>
           </div>
         ) : (
           <div className="space-y-6">
