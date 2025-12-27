@@ -24,7 +24,7 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   
   const BACKEND_URL = "https://nyxai-bg-remover-production.up.railway.app/api/remove-background";
-  const NORMAL_API_KEY = env.API_KEY || "nyx1q2w3e4r5t6y7u8i9o0p";
+  const API_KEY = env.API_KEY || "nyx1q2w3e4r5t6y7u8i9o0p";
   
   const MAX_SIZE_BYTES = 2 * 1024 * 1024;
   const MAX_RETRIES = 2;
@@ -113,7 +113,7 @@ export async function onRequestPost(context) {
     const stringToSign = `${timestamp}:${nonce}:${bodyHashHex}`;
     
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(NORMAL_API_KEY);
+    const keyData = encoder.encode(API_KEY);
     const key = await crypto.subtle.importKey(
       "raw", 
       keyData, 
