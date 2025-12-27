@@ -55,7 +55,7 @@ export async function onRequestPost(context) {
     }), { headers: { "Content-Type": "application/json" } });
   }
   
-  const BACKEND_URL = "https://nyxai-bg-remover-production.up.railway.app/api/remove-background";
+  const BACKEND_URL = "https://api.nyxagent.dev/api/remove-background";
   const API_KEY = env.API_KEY;
   if (!API_KEY) {
     return new Response(JSON.stringify({ error: "Server configuration error: API_KEY missing" }), {
