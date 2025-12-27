@@ -22,27 +22,45 @@ export async function onRequestPost(context) {
 
   const { buildAuthHeaders } = await import("../_shared/signature.js");
   
+  // ---------------------------------------------------------
+  // SECURITY: UI-Only Access Enforcement
+  // ---------------------------------------------------------
   const origin = request.headers.get("Origin");
   const referer = request.headers.get("Referer");
-  const allowedDomains = ["nyxagent.dev", "localhost"];
+  const secFetchSite = request.headers.get("Sec-Fetch-Site");
   
+  const allowedDomains = ["nyxagent.dev", "localhost", "127.0.0.1"];
+  
+  // 1. Origin Check (Strict)
   const isAllowedOrigin = origin && allowedDomains.some(d => origin.includes(d));
+  
+  // 2. Referer Check (Fallback)
   const isAllowedReferer = referer && allowedDomains.some(d => referer.includes(d));
   
-  if (!isAllowedOrigin && !isAllowedReferer && !request.headers.get("X-Debug-Simple")) {
+  // 3. Sec-Fetch-Site Check (Modern Browsers)
+  // 'same-origin' means request comes from same site.
+  const isSameSite = secFetchSite === "same-origin" || secFetchSite === "same-site";
+
+  // Logic: Must be from allowed origin OR allowed referer.
+  // If Sec-Fetch-Site is present, it MUST be same-origin/same-site.
+  const isAuthorized = (isAllowedOrigin || isAllowedReferer) && (secFetchSite ? isSameSite : true);
+
+  // Bypass for internal debug header
+  const isDebug = request.headers.get("X-Debug-Simple") === "true";
+
+  if (!isAuthorized && !isDebug) {
     return new Response(JSON.stringify({ 
-      error: "Access denied",
-      message: "This endpoint is only accessible from the frontend UI"
+      error: "Forbidden",
+      message: "Access denied. This API is only accessible via the official UI."
     }), {
       status: 403,
       headers: { 
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": origin || "*"
+        "Content-Type": "application/json"
       }
     });
   }
   
-  if (request.headers.get("X-Debug-Simple") === "true") {
+  if (isDebug) {
     return new Response(JSON.stringify({
       status: "alive",
       env_api_key_exists: !!env.API_KEY,
